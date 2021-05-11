@@ -156,11 +156,11 @@ def main():
     locked_users = set()
     i = 0
 
-    if not args.u or args.U:
+    if not args.u and not args.U:
         print(colored("[!] No users to spray... exiting", "red"))
         sys.exit()
     
-    if not args.p or args.P:
+    if not args.p and not args.P:
         print(colored("[!] No passwords to spray... exiting", "red"))
         sys.exit()
     
