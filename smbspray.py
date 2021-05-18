@@ -207,7 +207,7 @@ def main():
     parser.add_argument('-p', metavar="passwords", help="Password list to spray", type=str)
     parser.add_argument('-P', metavar="password", help="Single password to spray", type=str)
     parser.add_argument('-d', metavar="domain", help="Domain", type=str)
-    parser.add_argument('-l', metavar="lockout period", help="Lockout policy period in minutes", type=int)
+    parser.add_argument('-l', metavar="minutes", help="Lockout policy period in minutes", type=int)
     parser.add_argument('-a', metavar="attempts", help="Number of attempts per lockout period", type=int)
     parser.add_argument('-ip', metavar="IP/hostname", help="IP/hostname to spray", required=True, type=str)        
     parser.add_argument('--threads', metavar="threads", help="Number of threads to run", type=int)
