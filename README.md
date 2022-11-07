@@ -1,12 +1,12 @@
 # smbspray
 A smarter SMB password sprayer with customizable options
 
-**Version 1.1**
+**Version 1.2**
 
 ```
-SMBSpray v1.1
+SMBSpray v1.2
 
-usage: smbspray.py [-h] [-u users] [-U user] [-p passwords] [-P password] [-d domain] [-l minutes] [-a attempts] -ip IP/hostname [--threads threads] [--verbose] [--user_pw] [--unsafe]
+usage: smbspray.py [-h] [-u users] [-U user] [-p passwords] [-P password] [-d domain] [-l minutes] [-a attempts] -ip IP/hostname [--threads threads] [--verbose] [--user_pw][--unsafe]
 
 Parse Spray Arguments.
 
@@ -17,10 +17,10 @@ optional arguments:
   -p passwords       Password list to spray
   -P password        Single password to spray
   -d domain          Domain
-  -l minutes         Lockout policy period in minutes
-  -a attempts        Number of attempts per lockout period
+  -l minutes         Lockout policy period in minutes (Default: 30 minutes)
+  -a attempts        Number of attempts per lockout period (Default: 1 attempt)
   -ip IP/hostname    IP/hostname to spray
-  --threads threads  Number of threads to run
+  --threads threads  Number of threads to run (Default: 5 threads)
   --verbose          Verbose Mode
   --user_pw          Try username variations as password
   --unsafe           Keep spraying even if there are multiple account lockouts
