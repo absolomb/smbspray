@@ -93,10 +93,10 @@ def login(username, password, domain, host, verbose=False):
                 else:
                     ip = host
                 if is_admin:
-                    message = get_pretty_time("success") + "{}:{}\t{}{}\{}:{} ".format(ip,hostname,colored("[+] ","green", attrs=['bold']),domain,username,password) + colored("(ADMIN!)","green", attrs=['bold'])
+                    message = get_pretty_time("success") + "{}:{}\t{}{}\\{}:{} ".format(ip,hostname,colored("[+] ","green", attrs=['bold']),domain,username,password) + colored("(ADMIN!)","green", attrs=['bold'])
 
                 else:
-                    message = get_pretty_time("success") + "{}:{}\t{}{}\{}:{} ".format(ip,hostname,colored("[+] ","green", attrs=['bold']),domain,username,password)
+                    message = get_pretty_time("success") + "{}:{}\t{}{}\\{}:{} ".format(ip,hostname,colored("[+] ","green", attrs=['bold']),domain,username,password)
                 
                 with open(valid_creds, "a+") as f:
                     f.write(domain + "\\" + username + ":" + password + "\r\n")
@@ -114,13 +114,13 @@ def login(username, password, domain, host, verbose=False):
                 domain = smbclient.getServerDNSDomainName()
             
             if error in smb_error_status:
-                message = get_pretty_time("warn") + "{}:{}\t{}{}\{}:{} ".format(ip,hostname,colored("[-] ","yellow", attrs=['bold']),domain,username,password) + colored(error,"yellow", attrs=['bold'])
+                message = get_pretty_time("warn") + "{}:{}\t{}{}\\{}:{} ".format(ip,hostname,colored("[-] ","yellow", attrs=['bold']),domain,username,password) + colored(error,"yellow", attrs=['bold'])
             elif error == smb_error_locked:
-                message = get_pretty_time("danger") + "{}:{}\t{}{}\{}:{} ".format(ip,hostname,colored("[!] ","red", attrs=['bold']),domain,username,password) +  colored(error,"red", attrs=['bold'])
+                message = get_pretty_time("danger") + "{}:{}\t{}{}\\{}:{} ".format(ip,hostname,colored("[!] ","red", attrs=['bold']),domain,username,password) +  colored(error,"red", attrs=['bold'])
                 print(message)
                 raise Locked(username)
             else:
-                message = get_pretty_time() + "{}:{}\t{}{}\{}:{} ".format(ip,hostname,colored("[-] ","red", attrs=['bold']),domain,username,password) + error
+                message = get_pretty_time() + "{}:{}\t{}{}\\{}:{} ".format(ip,hostname,colored("[-] ","red", attrs=['bold']),domain,username,password) + error
             smbclient.close()
         print(message)
         if verbose and desc:
