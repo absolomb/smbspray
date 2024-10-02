@@ -34,7 +34,7 @@ smb_error_status = [
 
 # taken from CME
 def check_if_admin(conn):
-        rpctransport = SMBTransport(conn.getRemoteHost(), 445, r'\svcctl', smb_connection=conn)
+        rpctransport = SMBTransport(conn.getRemoteHost(), 445, r'\\svcctl', smb_connection=conn)
         dce = rpctransport.get_dce_rpc()
         try:
             dce.connect()
@@ -263,10 +263,11 @@ def main():
     parser.add_argument('--verbose', help="Verbose Mode", action='store_true')
     parser.add_argument('--user_pw', help="Try username variations as password", action='store_true')
     parser.add_argument('--unsafe', help="Keep spraying even if there are multiple account lockouts", action='store_true')
+    parser.add_argument('--no-interaction', help="Run without interactive input", action='store_true')
     
     args = parser.parse_args()
     if len(sys.argv) == 1:
-            parser.print_help()
+        parser.print_help()
 
     global domain
     global host
@@ -275,7 +276,7 @@ def main():
     global total_passwords
     global lockout_period
     global i
-    global unsafe 
+    global unsafe
     global locked_users
     global threads
     domain = args.d 
@@ -292,11 +293,11 @@ def main():
     i = 0
 
     if not args.u and not args.U:
-        print(colored("[!] No users to spray... exiting", "red",attrs=['bold']))
+        print(colored("[!] No users to spray... exiting", "red", attrs=['bold']))
         sys.exit()
     
     if not args.p and not args.P:
-        print(colored("[!] No passwords to spray... exiting", "red",attrs=['bold']))
+        print(colored("[!] No passwords to spray... exiting", "red", attrs=['bold']))
         sys.exit()
     
     if not domain:
@@ -329,9 +330,8 @@ def main():
             for tried_password in tried_passwords:
                 if tried_password in password_list:
                     password_list.remove(tried_password)
-                    print(colored("[*] {} already attempted, removed from spray list".format(tried_password), "yellow",attrs=['bold']))
+                    print(colored("[*] {} already attempted, removed from spray list".format(tried_password), "yellow", attrs=['bold']))
 
-    
     total_passwords = len(password_list)
 
     # add three total passwords to try for username variations
@@ -339,7 +339,7 @@ def main():
         total_passwords += 3
     
     if total_passwords == 0:
-        print(colored("[!] No passwords to spray... exiting", "red",attrs=['bold']))
+        print(colored("[!] No passwords to spray... exiting", "red", attrs=['bold']))
         sys.exit()
 
     # ugly math for rough estimate of time to completion
@@ -350,19 +350,21 @@ def main():
         mathz = lockout_period * mathz1 - lockout_period
 
     print(colored("[*] Attempting {} passwords every {} minutes for {} total passwords".format(attempts, lockout_period, total_passwords),"yellow",attrs=['bold']))
-    if total_passwords <= attempts:
-        print(colored("[*] This will run to completion without sleeping", "yellow",attrs=['bold']))
-        input(colored("[*] Press Enter to proceed","yellow",attrs=['bold']))
-    else: 
-        print(colored("[*] This will take just over {} minutes to complete".format(mathz),"yellow",attrs=['bold']))
-        input(colored("[*] Press Enter to proceed","yellow",attrs=['bold']))
     
+    if not args.no_interaction:
+        if total_passwords <= attempts:
+            print(colored("[*] This will run to completion without sleeping", "yellow", attrs=['bold']))
+            input(colored("[*] Press Enter to proceed", "yellow", attrs=['bold']))
+        else: 
+            print(colored("[*] This will take just over {} minutes to complete".format(mathz), "yellow", attrs=['bold']))
+            input(colored("[*] Press Enter to proceed", "yellow", attrs=['bold']))
+
     # do username variations as passwords
     if args.user_pw:
-        print(get_pretty_time("warn") + colored("Trying username password variations","yellow",attrs=['bold']))
-        try_password(user_list,"", threads, option="lower", unsafe=unsafe)
-        try_password(user_list,"", threads, option="upper", unsafe=unsafe)
-        try_password(user_list,"", threads, option="capital", unsafe=unsafe)
+        print(get_pretty_time("warn") + colored("Trying username password variations", "yellow", attrs=['bold']))
+        try_password(user_list, "", threads, option="lower", unsafe=unsafe)
+        try_password(user_list, "", threads, option="upper", unsafe=unsafe)
+        try_password(user_list, "", threads, option="capital", unsafe=unsafe)
 
     # iterate through passwords list
     if password_list:
