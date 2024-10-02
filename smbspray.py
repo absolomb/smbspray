@@ -32,26 +32,6 @@ smb_error_status = [
     "STATUS_ACCESS_DENIED"
 ]
 
-# taken from CME
-def check_if_admin(conn):
-        rpctransport = SMBTransport(conn.getRemoteHost(), 445, r'\\svcctl', smb_connection=conn)
-        dce = rpctransport.get_dce_rpc()
-        try:
-            dce.connect()
-        except:
-            pass
-        else:
-            dce.bind(scmr.MSRPC_UUID_SCMR)
-            try:
-                # 0xF003F - SC_MANAGER_ALL_ACCESS
-                # http://msdn.microsoft.com/en-us/library/windows/desktop/ms685981(v=vs.85).aspx
-                ans = scmr.hROpenSCManagerW(dce,'{}\x00'.format(conn.getRemoteHost()),'ServicesActive\x00', 0xF003F)
-                return True
-            except scmr.DCERPCException as e:
-                return False
-                pass
-        return
-
 smb_error_locked = "STATUS_ACCOUNT_LOCKED_OUT"
 
 shutdown = False
@@ -68,6 +48,13 @@ def is_ipv4(string):
 class Locked(Exception):
     def __init__(self, locked_user):
         self.locked_user = locked_user
+
+# Check if current time is within the allowed time range
+def is_within_time_range(current_time, start_time, end_time):
+    if start_time < end_time:
+        return start_time <= current_time < end_time
+    else:  # Over midnight scenario
+        return current_time >= start_time or current_time < end_time
 
 # login to smb function
 def login(username, password, domain, host, verbose=False):
@@ -264,6 +251,8 @@ def main():
     parser.add_argument('--user_pw', help="Try username variations as password", action='store_true')
     parser.add_argument('--unsafe', help="Keep spraying even if there are multiple account lockouts", action='store_true')
     parser.add_argument('--no-interaction', help="Run without interactive input", action='store_true')
+    parser.add_argument('--start-time', metavar="HH:MM", help="Start time for allowed operation", type=str)
+    parser.add_argument('--end-time', metavar="HH:MM", help="End time for allowed operation", type=str)
     
     args = parser.parse_args()
     if len(sys.argv) == 1:
@@ -289,6 +278,15 @@ def main():
     password_list = []
     locked_users = set()
     threads = args.threads
+
+    if args.start_time and args.end_time:
+        start_time = datetime.datetime.strptime(args.start_time, "%H:%M").time()
+        end_time = datetime.datetime.strptime(args.end_time, "%H:%M").time()
+        current_time = datetime.datetime.now().time()
+        while not is_within_time_range(current_time, start_time, end_time):
+            print(colored("[*] Outside allowed time range. Waiting... Current time: {}".format(current_time), "yellow", attrs=['bold']))
+            sleep(60)  # Check every minute
+            current_time = datetime.datetime.now().time()
 
     i = 0
 
