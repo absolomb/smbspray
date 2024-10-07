@@ -295,7 +295,7 @@ def main():
         print(colored("[!] No users to spray... exiting", "red",attrs=['bold']))
         sys.exit()
     
-    if not args.p and not args.P:
+    if not args.p and not args.P and not args.user_pw:
         print(colored("[!] No passwords to spray... exiting", "red",attrs=['bold']))
         sys.exit()
     
