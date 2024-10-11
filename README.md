@@ -6,7 +6,7 @@ A smarter SMB password sprayer with customizable options
 ```
 SMBSpray v1.2
 
-usage: smbspray.py [-h] [-u users] [-U user] [-p passwords] [-P password] [-d domain] [-l minutes] [-a attempts] -ip IP/hostname [--threads threads] [--verbose] [--user_pw][--unsafe]
+usage: smbspray.py [-h] [-u users] [-U user] [-p passwords] [-P password] [-d domain] [-l minutes] [-a attempts] -ip IP/hostname [--threads threads] [--verbose] [--user_pw] [--unsafe] [--no-interaction] [--start-time HH:MM] [--end-time HH:MM]
 
 Parse Spray Arguments.
 
@@ -24,6 +24,9 @@ optional arguments:
   --verbose          Verbose Mode
   --user_pw          Try username variations as password
   --unsafe           Keep spraying even if there are multiple account lockouts
+  --no-interaction   Do not ask for user input
+  --start-time HH:MM Start time for allowed operation
+  --end-time HH:MM   End time for allowed operation
   ```
 
 

